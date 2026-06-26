@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>Vite dotnet Manifest integration</Title>
+    <Product>Vite.dotnet</Product>
+    <Authors>Your IT Team,robertjf</Authors>
+    <Company>Your IT Group Pty Ltd</Company>
+    <Copyright>Copyright 2026 - $([System.DateTime]::Now.Year) $(Company)</Copyright>
+    <PackageProjectUrl>https://yourteams.com.au</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/YourITGroup/Vite.dotnet</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\README.nuget.md">
+			<Pack>True</Pack>
+			<PackagePath></PackagePath>
+		</None>
+	</ItemGroup>
+  
+</Project>

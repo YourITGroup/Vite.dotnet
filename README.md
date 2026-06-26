@@ -1,5 +1,13 @@
 # Vite.dotnet
 
+[![Vite.dotnet - Release](https://github.com/YourITGroup/Vite.dotnet/actions/workflows/release.yml/badge.svg)](https://github.com/YourITGroup/Vite.dotnet/actions/workflows/release.yml)
+
+Nuget Packages:
+
+| Package | Version | Downloads |
+| -- | -- | -- |
+| Vite.dotnet | [![NuGet release](https://img.shields.io/nuget/v/Vite.dotnet.svg)](https://www.nuget.org/packages/Vite.dotnet/) | [![NuGet release](https://img.shields.io/nuget/dt/Vite.dotnet.svg)](https://www.nuget.org/packages/Vite.dotnet/) |
+
 Resolves [Vite](https://vitejs.dev/) build-manifest entries to their hashed output files and renders the matching `<link>` / `<script>` tags in Razor views — so cache-busted asset filenames (e.g. `index.2A98uGZn.js`) never have to be hard-coded.
 
 The manifest (`manifest.json`) is read and parsed **once** and cached for the lifetime of the application (it is a build artifact that does not change at runtime), so it is not re-read on every page render.

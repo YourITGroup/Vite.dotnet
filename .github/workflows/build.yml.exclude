@@ -1,4 +1,4 @@
-name: OpenOrClosed - CI
+name: Vite.dotnet - CI
 
 on:
   release:
@@ -9,7 +9,7 @@ on:
   pull_request:
 
 env:
-  PROJECT: Vite/Vite.csproj
+  PROJECT: Vite.dotnet/Vite.dotnet.csproj
   OUTPUT_PATH: ./build-out/
 
 jobs:

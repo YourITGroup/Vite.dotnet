@@ -1,11 +1,11 @@
-name: OpenOrClosed - Release
+name: Vite.dotnet - Release
 
 on:
   push:
     branches: [ release* ]
 
 env:
-  PROJECT: Vite/Vite.csproj
+  PROJECT: Vite.dotnet/Vite.dotnet.csproj
   OUTPUT_PATH: ./build-out/
   
 jobs:
