@@ -155,6 +155,10 @@ public sealed class ViteManifestService : IViteManifestService
       var manifest = JsonSerializer.Deserialize<Dictionary<string, ViteManifestEntry>>(json, JsonOptions);
       if (manifest != null)
       {
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+          _logger.LogInformation("Loaded Vite manifest found at {ManifestPath}", _manifestPath);
+        }
         return manifest;
       }
     }

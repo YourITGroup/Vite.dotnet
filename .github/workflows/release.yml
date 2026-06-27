@@ -68,8 +68,6 @@ jobs:
     # Push the package
     - name: NuGet push
       run: dotnet nuget push ${{ env.OUTPUT_PATH }}*.nupkg --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
-    - name: Publish to NuGet
-      run: dotnet nuget push ${{ env.OUTPUT_PATH }}*.nupkg -s https://api.nuget.org/v3/index.json --skip-duplicate --api-key ${{ secrets.NUGET_API_KEY }}
 
     - uses: avakar/tag-and-release@v1
       name: Create Release Tag v${{ steps.package_version.outputs.version }}
