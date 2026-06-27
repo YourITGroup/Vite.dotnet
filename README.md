@@ -41,7 +41,8 @@ builder.Services.AddViteManifest(builder.Configuration);
 **2. Register the tag helper** (in `_ViewImports.cshtml`):
 
 ```cshtml
-@addTagHelper *, Vite
+@using Vite;
+@addTagHelper *, Vite.dotnet
 ```
 
 ## Configuration
