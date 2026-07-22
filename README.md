@@ -28,6 +28,8 @@ A production Vite build emits a manifest that maps each logical entry (e.g. `ind
 
 `ViteManifestService` loads this manifest from `{WebRootPath}/.vite/manifest.json`, resolves an entry, prefixes the files with a configurable base path, and renders the tags. The `<vite>` tag helper is a thin wrapper over the service.
 
+Resolution follows the entry's `imports` graph transitively: CSS contributed by shared/split chunks (which Vite records against those chunks, not the entry) is collected and rendered, and each imported chunk is emitted as a `<link rel="modulepreload">` hint alongside the entry `<script>`. Imports are deduplicated and cycle-guarded.
+
 ## Setup
 
 Two things wire it up:
@@ -138,8 +140,9 @@ Returned URLs are prefixed with the supplied base path. Pass `""` as the base pa
 | `GetEntry(entry)`                                                        | `ViteManifestEntry?`   | Resolve + cache lookup (`~/` tolerated).           |
 | `GetCssFiles()` / `(entry, basePath)` / `(ViteManifestEntry, basePath)`  | `IReadOnlyList<string>`| Resolved CSS URLs.                                 |
 | `GetJsFile()` / `(entry, basePath)` / `(ViteManifestEntry, basePath)`    | `string?`              | Resolved JS URL.                                   |
+| `GetModulePreloadFiles(ViteManifestEntry, basePath)`                     | `IReadOnlyList<string>`| Transitively-imported chunk URLs (for modulepreload). |
 | `RenderCss(entry, basePath, preload)`                                    | `IHtmlContent`         | CSS `<link>` tags only.                            |
-| `RenderJs(entry, basePath)`                                              | `IHtmlContent`         | Module `<script>` tag only.                        |
+| `RenderJs(entry, basePath)`                                              | `IHtmlContent`         | `<link rel="modulepreload">` for imported chunks + the module `<script>` tag. |
 | `RenderEntry(entry, basePath, preloadCss, assets, devServer)`            | `IHtmlContent`         | Full render; handles dev-server + not-found cases. |
 
 ## Development mode

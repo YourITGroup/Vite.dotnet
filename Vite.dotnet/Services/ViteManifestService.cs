@@ -54,13 +54,56 @@ public sealed class ViteManifestService : IViteManifestService
 
   public IReadOnlyList<string> GetCssFiles(ViteManifestEntry entry, string basePath)
   {
-    if (entry.Css is null || entry.Css.Count == 0)
+    // Collect CSS from the whole dependency graph: an entry's own `css` only
+    // covers the modules bundled into its chunk. CSS pulled in by shared/imported
+    // chunks (Vite splits those out) lives on those chunks' manifest records and
+    // is reachable only by walking `imports` transitively.
+    var collected = new List<string>();
+    var seenCss = new HashSet<string>(StringComparer.Ordinal);
+    var visited = new HashSet<string>(StringComparer.Ordinal);
+    CollectCss(entry, collected, seenCss, visited);
+
+    if (collected.Count == 0)
     {
       return [];
     }
 
     var basePrefix = basePath.TrimEnd('/');
-    return [.. entry.Css.Select(css => $"{basePrefix}/{css}")];
+    return [.. collected.Select(css => $"{basePrefix}/{css}")];
+  }
+
+  // Depth-first walk of the import graph. Imported chunks are processed before the
+  // current entry's own CSS so a dependency's styles load first and the entry's own
+  // styles can override them (mirrors Vite's own backend-integration collectCss).
+  private void CollectCss(ViteManifestEntry entry, List<string> collected, HashSet<string> seenCss, HashSet<string> visited)
+  {
+    if (entry.Imports is { Count: > 0 })
+    {
+      foreach (var import in entry.Imports)
+      {
+        // Guard against cycles and redundant work when several entries share a chunk.
+        if (!visited.Add(import))
+        {
+          continue;
+        }
+
+        if (_manifest.Value.TryGetValue(import, out var importedChunk))
+        {
+          CollectCss(importedChunk, collected, seenCss, visited);
+        }
+      }
+    }
+
+    if (entry.Css is { Count: > 0 })
+    {
+      foreach (var css in entry.Css)
+      {
+        if (seenCss.Add(css))
+        {
+          collected.Add(css);
+        }
+      }
+    }
   }
 
   public string? GetJsFile()
@@ -71,6 +114,56 @@ public sealed class ViteManifestService : IViteManifestService
 
   public string? GetJsFile(ViteManifestEntry entry, string basePath)
     => string.IsNullOrEmpty(entry.File) ? null : $"{basePath.TrimEnd('/')}/{entry.File}";
+
+  public IReadOnlyList<string> GetModulePreloadFiles(ViteManifestEntry entry, string basePath)
+  {
+    // The browser's ES module loader fetches statically-imported chunks on its own,
+    // but only after it has parsed the entry chunk. Emitting modulepreload hints for
+    // those imported chunks removes that discovery round-trip (matches Vite's own
+    // generated HTML). Walks the same import graph GetCssFiles uses.
+    var collected = new List<string>();
+    var seenFiles = new HashSet<string>(StringComparer.Ordinal);
+    var visited = new HashSet<string>(StringComparer.Ordinal);
+    CollectImportedJs(entry, collected, seenFiles, visited);
+
+    if (collected.Count == 0)
+    {
+      return [];
+    }
+
+    var basePrefix = basePath.TrimEnd('/');
+    return [.. collected.Select(file => $"{basePrefix}/{file}")];
+  }
+
+  // Depth-first walk collecting the output file of every transitively imported chunk
+  // (deepest dependency first). The entry's own file is excluded — it gets a real
+  // <script> tag, not a preload.
+  private void CollectImportedJs(ViteManifestEntry entry, List<string> collected, HashSet<string> seenFiles, HashSet<string> visited)
+  {
+    if (entry.Imports is not { Count: > 0 })
+    {
+      return;
+    }
+
+    foreach (var import in entry.Imports)
+    {
+      // Guard against cycles and redundant work when several entries share a chunk.
+      if (!visited.Add(import))
+      {
+        continue;
+      }
+
+      if (_manifest.Value.TryGetValue(import, out var importedChunk))
+      {
+        CollectImportedJs(importedChunk, collected, seenFiles, visited);
+
+        if (!string.IsNullOrEmpty(importedChunk.File) && seenFiles.Add(importedChunk.File))
+        {
+          collected.Add(importedChunk.File);
+        }
+      }
+    }
+  }
 
   public IHtmlContent RenderCss(ViteManifestEntry entry, string basePath, bool preload = false)
   {
@@ -109,7 +202,22 @@ public sealed class ViteManifestService : IViteManifestService
   public IHtmlContent RenderJs(ViteManifestEntry entry, string basePath)
   {
     var src = GetJsFile(entry, basePath);
-    return src is null ? HtmlString.Empty : new HtmlString($"<script type=\"module\" src=\"{src}\"></script>\n");
+    if (src is null)
+    {
+      return HtmlString.Empty;
+    }
+
+    var html = new StringBuilder();
+
+    // Preload statically-imported chunks so the browser fetches them in parallel with
+    // the entry rather than discovering them only after the entry has been parsed.
+    foreach (var preload in GetModulePreloadFiles(entry, basePath))
+    {
+      html.AppendLine($"<link rel=\"modulepreload\" href=\"{preload}\" />");
+    }
+
+    html.Append($"<script type=\"module\" src=\"{src}\"></script>\n");
+    return new HtmlString(html.ToString());
   }
 
   public IHtmlContent RenderEntry(string? entry = null, string? basePath = null, bool preloadCss = false, ViteAssets assets = ViteAssets.All, string? devServer = null)

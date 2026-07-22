@@ -7,5 +7,6 @@
   <Folder Name="/Documentation/">
     <File Path="README.md" />
   </Folder>
+  <Project Path="Vite.dotnet.Tests/Vite.dotnet.Tests.csproj" />
   <Project Path="Vite.dotnet/Vite.dotnet.csproj" />
 </Solution>
