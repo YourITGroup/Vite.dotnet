@@ -63,7 +63,7 @@ Options bind from the `ViteManifest` section of `appsettings.json`:
 | `DefaultEntry`    | `index.html`   | The logical entry assumed by the parameterless service getters.          |
 | `DefaultBasePath` | `/`            | The base path hashed assets are served from when none is supplied.       |
 
-Registration overloads (`ViteServiceExtensions`):
+Registration overloads (`ViteServiceCollectionExtensions`):
 
 ```csharp
 // Defaults only
@@ -141,9 +141,37 @@ Returned URLs are prefixed with the supplied base path. Pass `""` as the base pa
 | `GetCssFiles()` / `(entry, basePath)` / `(ViteManifestEntry, basePath)`  | `IReadOnlyList<string>`| Resolved CSS URLs.                                 |
 | `GetJsFile()` / `(entry, basePath)` / `(ViteManifestEntry, basePath)`    | `string?`              | Resolved JS URL.                                   |
 | `GetModulePreloadFiles(ViteManifestEntry, basePath)`                     | `IReadOnlyList<string>`| Transitively-imported chunk URLs (for modulepreload). |
+| `TryResolveHashedAsset(requestPath, out hashedPath)`                     | `bool`                 | Resolve an unhashed asset path to its hashed build output. |
 | `RenderCss(entry, basePath, preload)`                                    | `IHtmlContent`         | CSS `<link>` tags only.                            |
 | `RenderJs(entry, basePath)`                                              | `IHtmlContent`         | `<link rel="modulepreload">` for imported chunks + the module `<script>` tag. |
 | `RenderEntry(entry, basePath, preloadCss, assets, devServer)`            | `IHtmlContent`         | Full render; handles dev-server + not-found cases. |
+
+## Redirecting unhashed asset requests
+
+Vite fingerprints its output (`main-COZv9l4K.css`), which is great for caching but awkward when
+something needs to reference an asset by a stable, unhashed name (`/assets/main.css`). Register the
+redirect middleware and those requests are 302-redirected to the current hashed file:
+
+```csharp
+app.UseViteUnhashedAssetRedirects();  // register BEFORE app.UseStaticFiles()
+app.UseStaticFiles();
+```
+
+Registering the middleware is the only switch — there is no config flag. Leave the call out and the
+feature is off (and its manifest lookup is never built).
+
+- The unhashed → hashed lookup is derived once from the manifest (every entry/chunk JS file and
+  all CSS, including imported-chunk CSS), so it always tracks the latest build.
+- A **302** (never 301) is used because the hashed target changes every build — the unhashed URL
+  must not be cached permanently.
+- The middleware only acts on GET/HEAD requests whose path is a known unhashed asset; everything
+  else passes straight through.
+- Dehashing recognises Vite's default `[name]-[hash].[ext]` pattern (hash ≥ 8 chars). If two
+  build outputs dehash to the same unhashed name the first wins and a warning is logged — an
+  ambiguous redirect is never emitted.
+
+The service also exposes `TryResolveHashedAsset(requestPath, out hashedPath)` if you need the same
+resolution outside the middleware.
 
 ## Development mode
 
