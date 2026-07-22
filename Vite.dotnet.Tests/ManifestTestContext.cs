@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Vite.Configuration;
 using Vite.Services;
@@ -16,14 +16,19 @@ namespace Vite.dotnet.Tests;
 public sealed class ManifestTestContext : IDisposable
 {
   private readonly string _webRoot;
+  private readonly CapturingLogger _logger;
 
-  private ManifestTestContext(string webRoot, ViteManifestService service)
+  private ManifestTestContext(string webRoot, ViteManifestService service, CapturingLogger logger)
   {
     _webRoot = webRoot;
+    _logger = logger;
     Service = service;
   }
 
   public ViteManifestService Service { get; }
+
+  /// <summary>Warning-level (and above) log messages captured from the service.</summary>
+  public IReadOnlyList<string> Warnings => _logger.Warnings;
 
   public static ManifestTestContext Create(string manifestJson, ViteManifestOptions? options = null)
   {
@@ -32,13 +37,11 @@ public sealed class ManifestTestContext : IDisposable
     Directory.CreateDirectory(viteDir);
     File.WriteAllText(Path.Combine(viteDir, "manifest.json"), manifestJson);
 
+    var logger = new CapturingLogger();
     var env = new FakeWebHostEnvironment { WebRootPath = webRoot };
-    var service = new ViteManifestService(
-      env,
-      NullLogger<ViteManifestService>.Instance,
-      Options.Create(options ?? new ViteManifestOptions()));
+    var service = new ViteManifestService(env, logger, Options.Create(options ?? new ViteManifestOptions()));
 
-    return new ManifestTestContext(webRoot, service);
+    return new ManifestTestContext(webRoot, service, logger);
   }
 
   /// <summary>Creates a context whose manifest file does not exist on disk.</summary>
@@ -47,13 +50,11 @@ public sealed class ManifestTestContext : IDisposable
     var webRoot = Path.Combine(Path.GetTempPath(), "vite-dotnet-tests", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(webRoot);
 
+    var logger = new CapturingLogger();
     var env = new FakeWebHostEnvironment { WebRootPath = webRoot };
-    var service = new ViteManifestService(
-      env,
-      NullLogger<ViteManifestService>.Instance,
-      Options.Create(options ?? new ViteManifestOptions()));
+    var service = new ViteManifestService(env, logger, Options.Create(options ?? new ViteManifestOptions()));
 
-    return new ManifestTestContext(webRoot, service);
+    return new ManifestTestContext(webRoot, service, logger);
   }
 
   public void Dispose()
@@ -68,6 +69,25 @@ public sealed class ManifestTestContext : IDisposable
     catch (IOException)
     {
       // Best-effort cleanup; a locked temp file must not fail the test run.
+    }
+  }
+
+  private sealed class CapturingLogger : ILogger<ViteManifestService>
+  {
+    private readonly List<string> _warnings = [];
+
+    public IReadOnlyList<string> Warnings => _warnings;
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+      if (logLevel >= LogLevel.Warning)
+      {
+        _warnings.Add(formatter(state, exception));
+      }
     }
   }
 

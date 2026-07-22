@@ -5,14 +5,21 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Vite.Configuration;
 using Vite.Models;
 
 namespace Vite.Services;
 
-public sealed class ViteManifestService : IViteManifestService
+public sealed partial class ViteManifestService : IViteManifestService
 {
   private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+  // Vite's default output filename is "[name]-[hash].[ext]". The hash is the trailing
+  // "-" group; requiring >=8 chars from Vite's default hash alphabet avoids stripping a
+  // real "-" word (e.g. "vue-tel-input") that happens to sit before the extension.
+  [GeneratedRegex(@"^(?<name>.+)-[A-Za-z0-9_-]{8,}(?<ext>\.[^.]+)$")]
+  private static partial Regex HashedFileRegex();
 
   private readonly IWebHostEnvironment _env;
   private readonly ILogger<ViteManifestService> _logger;
@@ -23,6 +30,10 @@ public sealed class ViteManifestService : IViteManifestService
   // exactly once, no matter how many requests hit the tag helper concurrently.
   private readonly Lazy<IReadOnlyDictionary<string, ViteManifestEntry>> _manifest;
 
+  // Unhashed URL path -> hashed URL path, derived once from the manifest and prefixed
+  // with the configured base path. Populated only when RedirectUnhashedAssets is enabled.
+  private readonly Lazy<IReadOnlyDictionary<string, string>> _unhashedAssetMap;
+
   public ViteManifestService(IWebHostEnvironment env, ILogger<ViteManifestService> logger, IOptions<ViteManifestOptions> options)
   {
     _env = env;
@@ -30,6 +41,7 @@ public sealed class ViteManifestService : IViteManifestService
     _options = options.Value;
     _manifestPath = Path.Combine(env.WebRootPath, ".vite", "manifest.json");
     _manifest = new Lazy<IReadOnlyDictionary<string, ViteManifestEntry>>(LoadManifest);
+    _unhashedAssetMap = new Lazy<IReadOnlyDictionary<string, string>>(BuildUnhashedAssetMap);
   }
 
   public ViteManifestEntry? GetEntry(string entry)
@@ -253,6 +265,79 @@ public sealed class ViteManifestService : IViteManifestService
     }
 
     return content;
+  }
+
+  public bool TryResolveHashedAsset(string requestPath, out string hashedPath)
+  {
+    hashedPath = "";
+    if (string.IsNullOrEmpty(requestPath))
+    {
+      return false;
+    }
+
+    if (_unhashedAssetMap.Value.TryGetValue(requestPath, out var resolved))
+    {
+      hashedPath = resolved;
+      return true;
+    }
+
+    return false;
+  }
+
+  // Builds the unhashed -> hashed lookup from every output file the manifest references
+  // (entry/chunk JS files and all CSS files). Keys and values are base-path-prefixed URL
+  // paths so the middleware can compare against the incoming request path directly.
+  // Built lazily, so the cost is only paid when the redirect middleware is registered.
+  private IReadOnlyDictionary<string, string> BuildUnhashedAssetMap()
+  {
+    var basePrefix = _options.DefaultBasePath.TrimEnd('/');
+    var map = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    void Add(string? file)
+    {
+      if (string.IsNullOrEmpty(file))
+      {
+        return;
+      }
+
+      var match = HashedFileRegex().Match(file);
+      if (!match.Success)
+      {
+        return; // No hash segment -> nothing to redirect from.
+      }
+
+      var unhashed = match.Groups["name"].Value + match.Groups["ext"].Value;
+      var unhashedUrl = $"{basePrefix}/{unhashed}";
+      var hashedUrl = $"{basePrefix}/{file}";
+
+      if (map.TryGetValue(unhashedUrl, out var existing))
+      {
+        if (!string.Equals(existing, hashedUrl, StringComparison.Ordinal))
+        {
+          _logger.LogWarning(
+            "Ambiguous unhashed asset '{Unhashed}' maps to both '{Existing}' and '{New}'; keeping the first and skipping the redirect for the second.",
+            unhashedUrl, existing, hashedUrl);
+        }
+        return; // First mapping wins; never emit an ambiguous redirect.
+      }
+
+      map[unhashedUrl] = hashedUrl;
+    }
+
+    foreach (var entry in _manifest.Value.Values)
+    {
+      Add(entry.File);
+
+      if (entry.Css is { Count: > 0 })
+      {
+        foreach (var css in entry.Css)
+        {
+          Add(css);
+        }
+      }
+    }
+
+    return map;
   }
 
   private IReadOnlyDictionary<string, ViteManifestEntry> LoadManifest()

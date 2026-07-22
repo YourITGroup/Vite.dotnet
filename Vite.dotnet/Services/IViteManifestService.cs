@@ -77,6 +77,13 @@ public interface IViteManifestService
   IHtmlContent RenderJs(ViteManifestEntry entry, string basePath);
 
   /// <summary>
+  /// Attempts to resolve an unhashed asset request path (e.g. "/assets/main.css") to the
+  /// current hashed build output (e.g. "/assets/main-COZv9l4K.css"). Both paths are
+  /// base-path-prefixed. Returns false when the path is not a known unhashed asset.
+  /// </summary>
+  bool TryResolveHashedAsset(string requestPath, out string hashedPath);
+
+  /// <summary>
   /// Renders the requested asset tags for a Vite entry. Handles the dev-server
   /// short-circuit and the "entry not found" case, then composes the CSS and/or
   /// JS tags according to <paramref name="assets"/>.
