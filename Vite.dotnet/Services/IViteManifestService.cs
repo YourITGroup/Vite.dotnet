@@ -30,7 +30,9 @@ public interface IViteManifestService
   IReadOnlyList<string> GetCssFiles(string entry, string basePath);
 
   /// <summary>
-  /// Returns the base-path-resolved CSS file URLs for a manifest entry.
+  /// Returns the base-path-resolved CSS file URLs for a manifest entry, including CSS
+  /// contributed by chunks the entry imports (walked transitively). Imported chunks'
+  /// CSS is ordered before the entry's own so the entry can override its dependencies.
   /// </summary>
   IReadOnlyList<string> GetCssFiles(ViteManifestEntry entry, string basePath);
 
@@ -50,6 +52,14 @@ public interface IViteManifestService
   /// Returns the base-path-resolved JS file URL for a manifest entry.
   /// </summary>
   string? GetJsFile(ViteManifestEntry entry, string basePath);
+
+  /// <summary>
+  /// Returns the base-path-resolved URLs of the chunks a manifest entry imports
+  /// (walked transitively, deepest dependency first, deduplicated). These are the
+  /// files worth emitting as <c>&lt;link rel="modulepreload"&gt;</c> hints; the entry's
+  /// own file is excluded. Empty when the entry imports nothing.
+  /// </summary>
+  IReadOnlyList<string> GetModulePreloadFiles(ViteManifestEntry entry, string basePath);
 
   /// <summary>
   /// Renders only the CSS &lt;link&gt; tags for a manifest entry.
