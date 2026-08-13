@@ -34,6 +34,10 @@ public sealed partial class ViteManifestService : IViteManifestService
   // with the configured base path. Populated only when RedirectUnhashedAssets is enabled.
   private readonly Lazy<IReadOnlyDictionary<string, string>> _unhashedAssetMap;
 
+  // The entry used when neither the caller nor the options supply one; discovered from
+  // the manifest so a single-entry app needs no configuration at all.
+  private readonly Lazy<string> _discoveredDefaultEntry;
+
   public ViteManifestService(IWebHostEnvironment env, ILogger<ViteManifestService> logger, IOptions<ViteManifestOptions> options)
   {
     _env = env;
@@ -42,7 +46,13 @@ public sealed partial class ViteManifestService : IViteManifestService
     _manifestPath = Path.Combine(env.WebRootPath, ".vite", "manifest.json");
     _manifest = new Lazy<IReadOnlyDictionary<string, ViteManifestEntry>>(LoadManifest);
     _unhashedAssetMap = new Lazy<IReadOnlyDictionary<string, string>>(BuildUnhashedAssetMap);
+    _discoveredDefaultEntry = new Lazy<string>(DiscoverDefaultEntry);
   }
+
+  // Resolving through this (rather than reading _options.DefaultEntry) is what lets the
+  // discovery stay lazy: an explicitly configured entry never touches the manifest.
+  private string DefaultEntry
+    => string.IsNullOrWhiteSpace(_options.DefaultEntry) ? _discoveredDefaultEntry.Value : _options.DefaultEntry;
 
   public ViteManifestEntry? GetEntry(string entry)
   {
@@ -59,7 +69,7 @@ public sealed partial class ViteManifestService : IViteManifestService
   }
 
   public IReadOnlyList<string> GetCssFiles()
-    => GetCssFiles(_options.DefaultEntry, _options.DefaultBasePath);
+    => GetCssFiles(DefaultEntry, _options.DefaultBasePath);
 
   public IReadOnlyList<string> GetCssFiles(string entry, string basePath)
     => GetEntry(entry) is { } asset ? GetCssFiles(asset, basePath) : [];
@@ -119,7 +129,7 @@ public sealed partial class ViteManifestService : IViteManifestService
   }
 
   public string? GetJsFile()
-    => GetJsFile(_options.DefaultEntry, _options.DefaultBasePath);
+    => GetJsFile(DefaultEntry, _options.DefaultBasePath);
 
   public string? GetJsFile(string entry, string basePath)
     => GetEntry(entry) is { } asset ? GetJsFile(asset, basePath) : null;
@@ -235,8 +245,13 @@ public sealed partial class ViteManifestService : IViteManifestService
   public IHtmlContent RenderEntry(string? entry = null, string? basePath = null, bool preloadCss = false, ViteAssets assets = ViteAssets.All, string? devServer = null)
   {
     // Fall back to the configured defaults when not supplied.
-    entry = string.IsNullOrWhiteSpace(entry) ? _options.DefaultEntry : entry;
+    entry = string.IsNullOrWhiteSpace(entry) ? DefaultEntry : entry;
     basePath = string.IsNullOrWhiteSpace(basePath) ? _options.DefaultBasePath : basePath;
+
+    if (string.IsNullOrWhiteSpace(entry))
+    {
+      return new HtmlString("<!-- No Vite entry supplied and none could be resolved from the manifest -->");
+    }
 
     if (_env.IsDevelopment() && !string.IsNullOrWhiteSpace(devServer))
     {
@@ -338,6 +353,62 @@ public sealed partial class ViteManifestService : IViteManifestService
     }
 
     return map;
+  }
+
+  // Picks the entry to use when none is configured. Only `isEntry` records are eligible —
+  // shared chunks carry no CSS graph of their own and would render the wrong tags. HTML keys
+  // win over script keys because a Vite build with an HTML entry treats that as the app root;
+  // within a group the shortest-then-ordinal key wins so the result is stable across builds.
+  private string DiscoverDefaultEntry()
+  {
+    var candidates = _manifest.Value
+      .Where(pair => pair.Value.IsEntry)
+      .Select(pair => pair.Key)
+      .Where(key => Rank(key) > 0)
+      .OrderBy(Rank)
+      .ThenBy(key => key.Length)
+      .ThenBy(key => key, StringComparer.Ordinal)
+      .ToList();
+
+    if (candidates.Count == 0)
+    {
+      _logger.LogWarning(
+        "No default Vite entry configured and none could be discovered in {ManifestPath}; set ViteManifest:DefaultEntry or pass an entry explicitly.",
+        _manifestPath);
+      return "";
+    }
+
+    var chosen = candidates[0];
+
+    if (candidates.Count > 1)
+    {
+      _logger.LogWarning(
+        "No default Vite entry configured and the manifest declares {Count} entries ({Candidates}); using '{Chosen}'. Set ViteManifest:DefaultEntry to choose explicitly.",
+        candidates.Count, string.Join(", ", candidates), chosen);
+    }
+    else if (_logger.IsEnabled(LogLevel.Information))
+    {
+      _logger.LogInformation("Using discovered Vite entry '{Entry}' as the default.", chosen);
+    }
+
+    return chosen;
+
+    // 1 = HTML entry, 2 = script entry, 0 = not a usable default.
+    static int Rank(string key)
+    {
+      var ext = Path.GetExtension(key);
+
+      if (ext.Equals(".html", StringComparison.OrdinalIgnoreCase) || ext.Equals(".htm", StringComparison.OrdinalIgnoreCase))
+      {
+        return 1;
+      }
+
+      return ext.ToLowerInvariant() switch
+      {
+        ".js" or ".mjs" or ".cjs" or ".ts" or ".jsx" or ".tsx" => 2,
+        _ => 0,
+      };
+    }
   }
 
   private IReadOnlyDictionary<string, ViteManifestEntry> LoadManifest()

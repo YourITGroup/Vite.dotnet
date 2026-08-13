@@ -9,7 +9,8 @@ public class ViteTagHelper(IViteManifestService manifest) : TagHelper
 {
   /// <summary>
   /// Logical entry name from Vite (e.g., "src/main.js" or "index.html").
-  /// When omitted, the configured <c>DefaultEntry</c> is used.
+  /// When omitted, the configured <c>DefaultEntry</c> is used — or, when that is unset,
+  /// the entry discovered from the manifest.
   /// </summary>
   [HtmlAttributeName("entry")]
   public string? Entry { get; set; }

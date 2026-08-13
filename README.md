@@ -60,8 +60,14 @@ Options bind from the `ViteManifest` section of `appsettings.json`:
 
 | Option            | Default        | Description                                                              |
 | ----------------- | -------------- | ------------------------------------------------------------------------ |
-| `DefaultEntry`    | `index.html`   | The logical entry assumed by the parameterless service getters.          |
+| `DefaultEntry`    | *(discovered)* | The logical entry assumed by the parameterless service getters.          |
 | `DefaultBasePath` | `/`            | The base path hashed assets are served from when none is supplied.       |
+
+`DefaultEntry` is optional. Left unset, the entry is discovered from the manifest: the
+`isEntry` record with an `.html` key wins, falling back to one with a `.js`-family key
+(`.js`, `.mjs`, `.cjs`, `.ts`, `.jsx`, `.tsx`). A single-entry build therefore needs no
+configuration at all. When the manifest declares several entries, the first by that ordering
+is used and a warning is logged — set `DefaultEntry` to pick explicitly.
 
 Registration overloads (`ViteServiceCollectionExtensions`):
 
@@ -94,7 +100,7 @@ builder.Services.AddViteManifest(builder.Configuration, o => o.DefaultBasePath =
 
 | Attribute     | Type         | Default           | Description                                                       |
 | ------------- | ------------ | ----------------- | ----------------------------------------------------------------- |
-| `entry`       | string       | `DefaultEntry`    | Logical entry name. A leading `~/` is tolerated and stripped. Falls back to the configured default when omitted. |
+| `entry`       | string       | `DefaultEntry`    | Logical entry name. A leading `~/` is tolerated and stripped. Falls back to the configured default when omitted, or to the discovered entry when that is unset. |
 | `base-path`   | string       | `DefaultBasePath` | Base path the hashed assets are served from. Falls back to the configured default when omitted. |
 | `preload-css` | bool         | `false`           | Emit `rel="preload"` links with a `<noscript>` fallback.          |
 | `assets`      | `ViteAssets` | `All`             | Which tags to render: `Css`, `Js`, or `All`.                      |

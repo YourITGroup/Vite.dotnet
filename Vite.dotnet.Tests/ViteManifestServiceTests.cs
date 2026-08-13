@@ -339,6 +339,91 @@ public class ViteManifestServiceTests
   }
 
   [Fact]
+  public void GetJsFile_DiscoversSingleHtmlEntryWhenNoDefaultConfigured()
+  {
+    const string manifest = """
+    {
+      "_shared-WrdE9yCN.js": { "file": "assets/shared-WrdE9yCN.js" },
+      "index.html": { "file": "assets/main-espf9ZVg.js", "isEntry": true, "css": ["assets/main-COZv9l4K.css"] }
+    }
+    """;
+    using var ctx = ManifestTestContext.Create(manifest);
+
+    Assert.Equal("/assets/main-espf9ZVg.js", ctx.Service.GetJsFile());
+    Assert.Equal(["/assets/main-COZv9l4K.css"], ctx.Service.GetCssFiles());
+    Assert.Empty(ctx.Warnings);
+  }
+
+  [Fact]
+  public void GetJsFile_DiscoversScriptEntryWhenManifestHasNoHtmlEntry()
+  {
+    const string manifest = """
+    {
+      "_shared-WrdE9yCN.js": { "file": "assets/shared-WrdE9yCN.js" },
+      "src/main.ts": { "file": "assets/main-espf9ZVg.js", "isEntry": true }
+    }
+    """;
+    using var ctx = ManifestTestContext.Create(manifest);
+
+    Assert.Equal("/assets/main-espf9ZVg.js", ctx.Service.GetJsFile());
+  }
+
+  [Fact]
+  public void DiscoveredEntry_PrefersHtmlOverScriptEntry()
+  {
+    const string manifest = """
+    {
+      "src/main.ts": { "file": "assets/main-AAAAAAAA.js", "isEntry": true },
+      "app.html": { "file": "assets/app-BBBBBBBB.js", "isEntry": true }
+    }
+    """;
+    using var ctx = ManifestTestContext.Create(manifest);
+
+    Assert.Equal("/assets/app-BBBBBBBB.js", ctx.Service.GetJsFile());
+  }
+
+  [Fact]
+  public void DiscoveredEntry_IgnoresNonEntryChunks()
+  {
+    const string manifest = """
+    { "_shared-WrdE9yCN.js": { "file": "assets/shared-WrdE9yCN.js" } }
+    """;
+    using var ctx = ManifestTestContext.Create(manifest);
+
+    Assert.Null(ctx.Service.GetJsFile());
+    Assert.Contains(ctx.Warnings, w => w.Contains("none could be discovered"));
+  }
+
+  [Fact]
+  public void DiscoveredEntry_WarnsAndPicksDeterministicallyWhenAmbiguous()
+  {
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest);
+
+    Assert.Equal("/assets/main-espf9ZVg.js", ctx.Service.GetJsFile());
+    Assert.Contains(ctx.Warnings, w => w.Contains("declares 2 entries"));
+  }
+
+  [Fact]
+  public void ConfiguredDefaultEntry_WinsOverDiscovery()
+  {
+    var options = new ViteManifestOptions { DefaultEntry = "checkout/index.html", DefaultBasePath = "/" };
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest, options);
+
+    Assert.Equal("/assets/checkout-DLgJ9jU3.js", ctx.Service.GetJsFile());
+    Assert.Empty(ctx.Warnings);
+  }
+
+  [Fact]
+  public void RenderEntry_EmitsCommentWhenNoEntryCanBeResolved()
+  {
+    using var ctx = ManifestTestContext.CreateWithoutManifest();
+
+    var html = RenderToString(ctx.Service.RenderEntry());
+
+    Assert.Contains("none could be resolved", html);
+  }
+
+  [Fact]
   public void RenderCss_EmitsStylesheetLinksForEntryAndImports()
   {
     using var ctx = ManifestTestContext.Create(SharedChunkManifest);

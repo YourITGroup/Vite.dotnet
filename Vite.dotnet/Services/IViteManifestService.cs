@@ -18,8 +18,9 @@ public interface IViteManifestService
   ViteManifestEntry? GetEntry(string entry);
 
   /// <summary>
-  /// Returns the base-path-resolved CSS file URLs for the configured default entry and base path
-  /// (see <see cref="ViteManifestOptions"/>).
+  /// Returns the base-path-resolved CSS file URLs for the default entry and base path
+  /// (see <see cref="ViteManifestOptions"/>). When no default entry is configured, it is
+  /// discovered from the manifest.
   /// </summary>
   IReadOnlyList<string> GetCssFiles();
 
@@ -37,8 +38,9 @@ public interface IViteManifestService
   IReadOnlyList<string> GetCssFiles(ViteManifestEntry entry, string basePath);
 
   /// <summary>
-  /// Returns the base-path-resolved JS file URL for the configured default entry and base path
-  /// (see <see cref="ViteManifestOptions"/>).
+  /// Returns the base-path-resolved JS file URL for the default entry and base path
+  /// (see <see cref="ViteManifestOptions"/>). When no default entry is configured, it is
+  /// discovered from the manifest.
   /// </summary>
   string? GetJsFile();
 
@@ -88,7 +90,7 @@ public interface IViteManifestService
   /// short-circuit and the "entry not found" case, then composes the CSS and/or
   /// JS tags according to <paramref name="assets"/>.
   /// </summary>
-  /// <param name="entry">Logical entry name (e.g. "index.html"). A leading "~/" is tolerated. Falls back to <see cref="ViteManifestOptions.DefaultEntry"/> when null/empty.</param>
+  /// <param name="entry">Logical entry name (e.g. "index.html"). A leading "~/" is tolerated. Falls back to <see cref="ViteManifestOptions.DefaultEntry"/> when null/empty, and to the manifest's own entry when that is unset too.</param>
   /// <param name="basePath">Base path the hashed assets are served from (e.g. "/"). Falls back to <see cref="ViteManifestOptions.DefaultBasePath"/> when null/empty.</param>
   /// <param name="preloadCss">When true, emit preload links for CSS with a &lt;noscript&gt; fallback.</param>
   /// <param name="assets">Which asset tags to render (CSS, JS, or both). Defaults to both.</param>
