@@ -94,6 +94,6 @@ public interface IViteManifestService
   /// <param name="basePath">Base path the hashed assets are served from (e.g. "/"). Falls back to <see cref="ViteManifestOptions.DefaultBasePath"/> when null/empty.</param>
   /// <param name="preloadCss">When true, emit preload links for CSS with a &lt;noscript&gt; fallback.</param>
   /// <param name="assets">Which asset tags to render (CSS, JS, or both). Defaults to both.</param>
-  /// <param name="devServer">Optional Vite dev-server host:port; only used in the Development environment.</param>
+  /// <param name="devServer">Optional Vite dev-server, as "host:port" or a full origin; only used in the Development environment. Falls back to <see cref="ViteManifestOptions.DevServer"/> when null/empty.</param>
   IHtmlContent RenderEntry(string? entry = null, string? basePath = null, bool preloadCss = false, ViteAssets assets = ViteAssets.All, string? devServer = null);
 }

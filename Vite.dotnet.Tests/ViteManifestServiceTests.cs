@@ -469,6 +469,51 @@ public class ViteManifestServiceTests
   }
 
   [Fact]
+  public void RenderEntry_UsesConfiguredDevServerInDevelopment()
+  {
+    var options = new ViteManifestOptions { DevServer = "localhost:5173" };
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest, options, environmentName: "Development");
+
+    var html = RenderToString(ctx.Service.RenderEntry("~/index.html"));
+
+    Assert.Equal("<script type=\"module\" src=\"http://localhost:5173/index.html\"></script>", html);
+  }
+
+  [Fact]
+  public void RenderEntry_ExplicitDevServerBeatsConfiguredOne()
+  {
+    var options = new ViteManifestOptions { DevServer = "localhost:5173" };
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest, options, environmentName: "Development");
+
+    var html = RenderToString(ctx.Service.RenderEntry("index.html", devServer: "127.0.0.1:4000"));
+
+    Assert.Contains("http://127.0.0.1:4000/index.html", html);
+  }
+
+  [Fact]
+  public void RenderEntry_DevServerWithSchemeIsUsedVerbatim()
+  {
+    var options = new ViteManifestOptions { DevServer = "https://localhost:5173/" };
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest, options, environmentName: "Development");
+
+    var html = RenderToString(ctx.Service.RenderEntry("index.html"));
+
+    Assert.Contains("https://localhost:5173/index.html", html);
+  }
+
+  [Fact]
+  public void RenderEntry_IgnoresConfiguredDevServerOutsideDevelopment()
+  {
+    var options = new ViteManifestOptions { DevServer = "localhost:5173" };
+    using var ctx = ManifestTestContext.Create(SharedChunkManifest, options);
+
+    var html = RenderToString(ctx.Service.RenderEntry("index.html", "/"));
+
+    Assert.DoesNotContain("5173", html);
+    Assert.Contains("/assets/main-espf9ZVg.js", html);
+  }
+
+  [Fact]
   public void MissingManifest_YieldsEmptyResultsWithoutThrowing()
   {
     using var ctx = ManifestTestContext.CreateWithoutManifest();

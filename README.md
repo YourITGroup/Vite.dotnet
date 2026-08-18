@@ -54,7 +54,8 @@ Options bind from the `ViteManifest` section of `appsettings.json`:
 ```json
 "ViteManifest": {
   "DefaultEntry": "index.html",
-  "DefaultBasePath": "/"
+  "DefaultBasePath": "/",
+  "DevServer": "localhost:5173"
 }
 ```
 
@@ -62,6 +63,7 @@ Options bind from the `ViteManifest` section of `appsettings.json`:
 | ----------------- | -------------- | ------------------------------------------------------------------------ |
 | `DefaultEntry`    | *(discovered)* | The logical entry assumed by the parameterless service getters.          |
 | `DefaultBasePath` | `/`            | The base path hashed assets are served from when none is supplied.       |
+| `DevServer`       | *(none)*       | Vite dev server used when no `dev-server` is supplied on the tag; `host:port` or a full origin. Only honoured in the Development environment. |
 
 `DefaultEntry` is optional. Left unset, the entry is discovered from the manifest: the
 `isEntry` record with an `.html` key wins, falling back to one with a `.js`-family key
@@ -104,7 +106,7 @@ builder.Services.AddViteManifest(builder.Configuration, o => o.DefaultBasePath =
 | `base-path`   | string       | `DefaultBasePath` | Base path the hashed assets are served from. Falls back to the configured default when omitted. |
 | `preload-css` | bool         | `false`           | Emit `rel="preload"` links with a `<noscript>` fallback.          |
 | `assets`      | `ViteAssets` | `All`             | Which tags to render: `Css`, `Js`, or `All`.                      |
-| `dev-server`  | string       | `""`              | Vite dev-server `host:port`; only used in the Development env.    |
+| `dev-server`  | string       | `DevServer`       | Vite dev server as `host:port` or a full origin; only used in the Development env. Falls back to the configured default when omitted. |
 
 With both defaulted from options, the tag can be reduced to just `<vite />` (or `<vite assets="Css" />`):
 
@@ -181,11 +183,26 @@ resolution outside the middleware.
 
 ## Development mode
 
-When the environment is `Development` **and** a `dev-server` is supplied, `RenderEntry` skips the manifest entirely and points straight at the Vite dev server for HMR:
+When the environment is `Development` **and** a dev server is resolved — from the `dev-server`
+attribute, or failing that the `DevServer` option — `RenderEntry` skips the manifest entirely and
+points straight at the Vite dev server for HMR:
 
 ```html
 <script type="module" src="http://localhost:5173/index.html"></script>
 ```
+
+Setting it once in `appsettings.Development.json` keeps it off every tag, and it is inert outside
+Development, so the same config can ship:
+
+```json
+// appsettings.Development.json
+"ViteManifest": {
+  "DevServer": "localhost:5173"
+}
+```
+
+A bare `host:port` is assumed to be `http`; supply a full origin (`https://localhost:5173`) to use
+another scheme.
 
 The Vite dev server injects CSS through the module script, so a single tag covers both — render with `assets="Js"` if you split head/body in dev. The standalone `RenderCss`/`RenderJs`/`Get*` methods operate purely on the cached manifest (production assets) and do not have a dev-server path.
 

@@ -253,12 +253,14 @@ public sealed partial class ViteManifestService : IViteManifestService
       return new HtmlString("<!-- No Vite entry supplied and none could be resolved from the manifest -->");
     }
 
+    devServer = string.IsNullOrWhiteSpace(devServer) ? _options.DevServer : devServer;
+
     if (_env.IsDevelopment() && !string.IsNullOrWhiteSpace(devServer))
     {
       // Dev mode: point straight at the Vite dev server (no manifest involved).
       // The dev server injects CSS via the module script, so a single tag covers both.
       var entryKey = entry.TrimStart('~').TrimStart('/');
-      return new HtmlString($"<script type=\"module\" src=\"http://{devServer}/{entryKey}\"></script>");
+      return new HtmlString($"<script type=\"module\" src=\"{DevServerOrigin(devServer)}/{entryKey}\"></script>");
     }
 
     var manifestEntry = GetEntry(entry);
@@ -280,6 +282,14 @@ public sealed partial class ViteManifestService : IViteManifestService
     }
 
     return content;
+  }
+
+  // A dev server may be configured as a bare "host:port" or as a full origin; only the
+  // former needs a scheme bolted on, and a trailing slash would double up against the entry.
+  private static string DevServerOrigin(string devServer)
+  {
+    var trimmed = devServer.Trim().TrimEnd('/');
+    return trimmed.Contains("://", StringComparison.Ordinal) ? trimmed : $"http://{trimmed}";
   }
 
   public bool TryResolveHashedAsset(string requestPath, out string hashedPath)

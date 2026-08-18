@@ -30,7 +30,7 @@ public sealed class ManifestTestContext : IDisposable
   /// <summary>Warning-level (and above) log messages captured from the service.</summary>
   public IReadOnlyList<string> Warnings => _logger.Warnings;
 
-  public static ManifestTestContext Create(string manifestJson, ViteManifestOptions? options = null)
+  public static ManifestTestContext Create(string manifestJson, ViteManifestOptions? options = null, string environmentName = "Production")
   {
     var webRoot = Path.Combine(Path.GetTempPath(), "vite-dotnet-tests", Guid.NewGuid().ToString("N"));
     var viteDir = Path.Combine(webRoot, ".vite");
@@ -38,7 +38,7 @@ public sealed class ManifestTestContext : IDisposable
     File.WriteAllText(Path.Combine(viteDir, "manifest.json"), manifestJson);
 
     var logger = new CapturingLogger();
-    var env = new FakeWebHostEnvironment { WebRootPath = webRoot };
+    var env = new FakeWebHostEnvironment { WebRootPath = webRoot, EnvironmentName = environmentName };
     var service = new ViteManifestService(env, logger, Options.Create(options ?? new ViteManifestOptions()));
 
     return new ManifestTestContext(webRoot, service, logger);

@@ -28,7 +28,8 @@ public class ViteTagHelper(IViteManifestService manifest) : TagHelper
   public bool PreloadCss { get; set; } = false;
 
   /// <summary>
-  /// Optional dev server url and port
+  /// Optional Vite dev server, as "host:port" or a full origin. When omitted, the configured
+  /// <c>DevServer</c> is used. Only honoured in the Development environment.
   /// </summary>
   [HtmlAttributeName("dev-server")]
   public string DevServer { get; set; } = "";
